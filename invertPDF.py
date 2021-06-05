@@ -9,7 +9,7 @@ import sys
 def invertPDF(in_file, out_file):
     #Setup
     boxstr = 'q \n1.0 1.0 1.0 rg\n{} gs\n{} {} {} {} re\n f\n Q'
-    blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), BM=Name('/Difference'))
+    blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), BM=Name('/Difference'), ca=1, CA=1, op='true', OP='true')
     xobj_dict = pikepdf.Dictionary({'/Type':Name('/XObject') ,'/SubType':Name('/Form'),'/Group':{'/S':Name('/Transparency'), '/CS':Name('/DeviceRGB')}})
     do_str = '{} Do\n'
 
