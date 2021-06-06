@@ -1,12 +1,40 @@
+'''
+A simple script for inverting PDF files.
+Requirements:
+ - Python 3.6+
+ - pikepdf 2.12
+ - PyPDF2 1.26
+
+Usage:
+python3 invertPDF.py [file/folder 1] [file/folder 2] ...
+
+For each folder given as arguement, all PDF files inside the folder will be inverted and the inverted copies will be saved
+inside a new folder 'invertedPDFs' created inside the given folder, using the original file names for the inverted copies.
+For all files given as input, the file is converted in a similar manner, with the 'invertedPDFs' folder now located in the
+parent folder of the file. If no arguements are given, the parent folder of the script is treated as input.
+'''
+
+__author__ = 'Christoff van Zyl'
+__copyright__ = '"Copyright 2021, invertPDF'
+__license__ = 'GPL'
+
+
+from pathlib import Path
+import sys
 import pikepdf
 from PyPDF2 import PdfFileReader
 from pikepdf import Page, Name
-from pathlib import Path
-import pathlib
-import sys
+
 
 
 def invertPDF(in_file, out_file):
+    '''
+    Inverts a PDF and saves it elsewhere.
+
+    Parameters:
+    in_file: The file to invert.
+    out_file: The destination of the inverted copy.
+    '''
     #Setup
     boxstr = 'q \n1.0 1.0 1.0 rg\n{} gs\n{} {} {} {} re\n f\n Q'
     blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), BM=Name('/Difference'), ca=1, CA=1, op='true', OP='true')
@@ -47,32 +75,43 @@ def invertPDF(in_file, out_file):
             
         pdf.save(out_file)
 
+def invert_files_to_folder(files, folder):
+    '''
+    Converts all given files and places their inverted copies in the given folder under the same file names.
+
+    Parameters:
+    files: Array of file names to be converted.
+    folder: The folder in which to put the inverted copies.
+    '''
+    folder.mkdir(parents=True, exist_ok=True)
+    for ifile in files:
+        try:
+                inverted_pdf_file = folder / ifile.name
+                invertPDF(str(ifile), str(inverted_pdf_file))
+                print('Success: {}'.format(ifile.name))
+        except:
+                print('Failed: {}'.format(ifile.name))
+
 if __name__ == '__main__':
     #Convert all pdfs in directory
     if len(sys.argv) == 1:
-        path = Path(__file__).resolve().parent
-    #Convert specfic pdf or pdfs in specific directory
+        path = Path(__file__).parent
+        files_to_invert = path.glob('*.pdf')
+        invert_files_to_folder(files_to_invert, path / 'invertedPDFs')
+
+
+    #Convert specfic PDF or PDFs in specific directory
     else:
-        path = Path(sys.argv[1]).resolve()        
-    
-    if path.is_dir():
-        inverted_folder = path / "invertedPDFs"
-        inverted_folder.mkdir(exist_ok=True)
-        for pdf_file in path.glob('*.pdf'):
-            
-            inverted_pdf_file = inverted_folder / pdf_file.name
+        for i in range(1, len(sys.argv)):
             try:
-                invertPDF(str(pdf_file), str(inverted_pdf_file))
-                print(pdf_file.name + " succesfully converted.")
-            except:
-                print(pdf_file.name + " failed to convert.")
+                path = Path(sys.argv[i])    
             
-    elif path.is_file():
-        inverted_folder = path.parent / "invertedPDFs"
-        inverted_folder.mkdir(exist_ok=True)
-        try:
-            inverted_pdf_file = inverted_folder / path.name
-            invertPDF(str(path), str(inverted_pdf_file))
-            print(path.name + " succesfully converted.")
-        except:
-            print(path.name + " failed to convert.")
+                if path.is_dir():
+                    files_to_invert = path.glob('*.pdf')
+                   
+                elif path.is_file():
+                    files_to_invert = [path]
+                    path = path.parent
+                invert_files_to_folder(files_to_invert, path / 'invertedPDFs')
+            except:
+                    print("Folder or File arguement failed: {}".format(sys.argv[i]))
