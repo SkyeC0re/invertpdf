@@ -6,7 +6,9 @@ Requirements:
 * PyPDF2  1.26
 
 ## Usage:
-python3 invertPDF.py [filename | foldername]\
-If a folder is given as arguement (no arguement defaults to selecting the parent folder in which the script resides), the script selects all pdf files inside
-the folder and saves the inverted copies of these PDFs inside a new folder: 'invertedPDFs', using the original file names. Similar behaviour is achieved by giving a file as arguement, except only that single file will be converted.
+python3 invertPDF.py [filename1 | foldername1] [filename2 | foldername2] ...\
+For each folder given as arguement, all PDF files inside the folder will be inverted and the inverted copies will be saved
+inside a new folder 'invertedPDFs' created inside the given folder, using the original file names for the inverted copies.
+For all files given as input, the file is converted in a similar manner, with the 'invertedPDFs' folder now located in the
+parent folder of the file. If no arguements are given, the parent folder of the script is treated as input.
 
