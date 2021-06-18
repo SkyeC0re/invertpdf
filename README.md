@@ -1,5 +1,5 @@
 # invertPDF.py
-A simple python3 script for inverting the colors of PDFs, whilst keeping the pdf format and structure of the document.\
+A simple python3 script for inverting the colors of PDFs, whilst keeping the pdf format and vector nature of the document.\
 Requirements:
 * Python  3.6+
 * pikepdf 2.12
