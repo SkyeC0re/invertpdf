@@ -1,9 +1,10 @@
+#!/usr/bin/python3
 '''
 A simple script for inverting PDF files.
 Requirements:
  - Python 3.6+
- - pikepdf 2.12
- - PyPDF2 1.26
+ - pikepdf 2.15+
+ - PyPDF2 1.26+
 
 Usage:
 python3 invertPDF.py [file/folder 1] [file/folder 2] ...
@@ -36,10 +37,9 @@ def invertPDF(in_file, out_file):
     out_file: The destination of the inverted copy.
     '''
     #Setup
-    boxstr = 'q \n1.0 1.0 1.0 rg\n{} gs\n{} {} {} {} re\n f\n Q'
-    blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), BM=Name('/Difference'), ca=1, CA=1)
+    blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), BM=Name('/Exclusion'), ca=1, CA=1)
+    non_blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), ca=1, CA=1)
     xobj_dict = pikepdf.Dictionary({'/Type':Name('/XObject') ,'/SubType':Name('/Form'),'/Group':{'/S':Name('/Transparency'), '/CS':Name('/DeviceRGB')}})
-    do_str = '{} Do\n'
 
     num_pages = 0
     boxes = []
@@ -48,30 +48,29 @@ def invertPDF(in_file, out_file):
     pdf = PdfFileReader(in_file)
     num_pages = pdf.getNumPages()
     for i in range(num_pages):
-        tmp = []
         box = pdf.getPage(i).mediaBox
-        for val in box:
-            tmp.append(float(val))
         
-        x_add = (tmp[2] - tmp[0]) * 0.3
-        y_add = (tmp[3] - tmp[1]) * 0.3
-        tmp[0] -= x_add / 2
-        tmp[2] += x_add
-        tmp[1] -= y_add / 2
-        tmp[3] += y_add
-        boxes.append(tmp)
+        
+        min_c = float(min(box))
+        max_c = float(max(box))
+        add = (max_c - min_c) * 10
+        
+        min_c -= add
+        max_c += add
+        boxes.append([min_c, min_c, max_c -min_c, max_c - min_c])
 
     with pikepdf.open(in_file) as pdf:
         for i in range(num_pages):
-            page = pdf.pages[i]
-            ppage = Page(page)
-            #Add Blending Mode
-            name = ppage.add_resource(blend_dict, Name('/ExtGState'))
-            #Create XObject
-            xobj = pdf.make_stream(bytes(boxstr.format(name, *boxes[i]), 'utf8'), xobj_dict)
-            #Add it before (to invert page) and after content (to invert content)
-            page.page_contents_add(xobj, prepend=True)
-            page.page_contents_add(xobj)
+            page = Page(pdf.pages[i])
+            #Add Dictionaries to Page
+            name = page.add_resource(blend_dict, Name('/ExtGState'))
+            name2 = page.add_resource(non_blend_dict, Name('/ExtGState'))
+            #Create rectangles
+            front_rect = pdf.make_stream(bytes('q \n0.9 0.9 0.9 rg\n{} gs\n{} {} {} {} re\n f\n Q'.format(name, *boxes[i]), 'utf8'), xobj_dict)
+            back_rect = pdf.make_stream(bytes('q \n1.0 1.0 1.0 rg\n{} gs\n{} {} {} {} re\n f\n Q'.format(name2, *boxes[i]), 'utf8'))
+            #Add Rectangles to page
+            page.contents_add(back_rect, prepend=True)
+            page.contents_add(front_rect)
             
         pdf.save(out_file)
 
@@ -89,13 +88,14 @@ def invert_files_to_folder(files, folder):
                 inverted_pdf_file = folder / ifile.name
                 invertPDF(str(ifile), str(inverted_pdf_file))
                 print('Success: {}'.format(ifile.name))
-        except:
+        except Exception as e:
                 print('Failed: {}'.format(ifile.name))
+                print(e)
 
 if __name__ == '__main__':
     #Convert all pdfs in directory
     if len(sys.argv) == 1:
-        path = Path(__file__).parent
+        path = Path.cwd()
         files_to_invert = path.glob('*.pdf')
         invert_files_to_folder(files_to_invert, path / 'invertedPDFs')
 
