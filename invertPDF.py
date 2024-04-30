@@ -1,10 +1,6 @@
 #!/usr/bin/python3
 '''
 A simple script for inverting PDF files.
-Requirements:
- - Python 3.6+
- - pikepdf 2.15+
- - PyPDF2 1.26+
 
 Usage:
 python3 invertPDF.py [file/folder 1] [file/folder 2] ...
@@ -23,7 +19,7 @@ __license__ = 'GPL'
 from pathlib import Path
 import sys
 import pikepdf
-from PyPDF2 import PdfFileReader
+from PyPDF2 import PdfReader
 from pikepdf import Page, Name
 
 
@@ -45,10 +41,10 @@ def invertPDF(in_file, out_file):
     boxes = []
 
     #Read approximate page coordinate sizes using different library (pikepdf's mediabox functionality appears broken (pikepdf 2.12))
-    pdf = PdfFileReader(in_file)
-    num_pages = pdf.getNumPages()
+    pdf = PdfReader(in_file)
+    num_pages = len(pdf.pages)
     for i in range(num_pages):
-        box = pdf.getPage(i).mediaBox
+        box = pdf.pages[i].mediabox
         
         
         min_c = float(min(box))
