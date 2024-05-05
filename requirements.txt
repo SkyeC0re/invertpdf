@@ -1,0 +1,7 @@
+lxml==5.2.1
+packaging==24.0
+pikepdf==8.15.1
+pillow==10.3.0
+PyPDF2==3.0.1
+typing_extensions==4.11.0
+wrapt==1.16.0
