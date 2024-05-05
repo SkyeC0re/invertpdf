@@ -1,14 +1,6 @@
 #!/usr/bin/python3
 '''
-A simple script for inverting PDF files.
-
-Usage:
-python3 invertPDF.py [file/folder 1] [file/folder 2] ...
-
-For each folder given as arguement, all PDF files inside the folder will be inverted and the inverted copies will be saved
-inside the given folder, using the original file names for the inverted copies.
-For all files given as input, the file is converted in a similar manner, with the pdfs now located in the
-parent folder of the file. If no arguements are given, the parent folder of the script is treated as input.
+A simple script for inverting the color of PDF files.
 '''
 
 __author__ = 'Christoff van Zyl'
