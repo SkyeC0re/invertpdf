@@ -15,16 +15,13 @@ __author__ = 'Christoff van Zyl'
 __copyright__ = '"Copyright 2021, invertPDF'
 __license__ = 'GPL'
 
-
-import sys
 from pathlib import Path
-
 import pikepdf
 from PyPDF2 import PdfReader
 from pikepdf import Page, Name
 
 
-def invertPDF(in_file, out_file):
+def invertPDF(in_file, out_file, inv_ratio: float = 1.0):
     '''
     Inverts a PDF and saves it elsewhere.
 
@@ -32,45 +29,49 @@ def invertPDF(in_file, out_file):
     in_file: The file to invert.
     out_file: The destination of the inverted copy.
     '''
-    #Setup
-    blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), BM=Name('/Exclusion'), ca=1, CA=1)
+    # Setup
+    blend_dict = pikepdf.Dictionary(
+        Type=Name('/ExtGState'), BM=Name('/Exclusion'), ca=1, CA=1)
     non_blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), ca=1, CA=1)
-    xobj_dict = pikepdf.Dictionary({'/Type':Name('/XObject') ,'/SubType':Name('/Form'),'/Group':{'/S':Name('/Transparency'), '/CS':Name('/DeviceRGB')}})
+    xobj_dict = pikepdf.Dictionary({'/Type': Name('/XObject'), '/SubType': Name(
+        '/Form'), '/Group': {'/S': Name('/Transparency'), '/CS': Name('/DeviceRGB')}})
 
     num_pages = 0
     boxes = []
 
-    #Read approximate page coordinate sizes using different library (pikepdf's mediabox functionality appears broken (pikepdf 2.12))
+    # Read approximate page coordinate sizes using different library (pikepdf's mediabox functionality appears broken (pikepdf 2.12))
     pdf = PdfReader(in_file)
     num_pages = len(pdf.pages)
     for i in range(num_pages):
         box = pdf.pages[i].mediabox
-        
-        
+
         min_c = float(min(box))
         max_c = float(max(box))
         add = (max_c - min_c) * 10
-        
+
         min_c -= add
         max_c += add
-        boxes.append([min_c, min_c, max_c -min_c, max_c - min_c])
+        boxes.append([min_c, min_c, max_c - min_c, max_c - min_c])
 
     with pikepdf.open(in_file) as pdf:
         for i in range(num_pages):
             page = Page(pdf.pages[i])
-            #Add Dictionaries to Page
+            # Add Dictionaries to Page
             name = page.add_resource(blend_dict, Name('/ExtGState'))
             name2 = page.add_resource(non_blend_dict, Name('/ExtGState'))
-            #Create rectangles
-            front_rect = pdf.make_stream(bytes('q \n0.9 0.9 0.9 rg\n{} gs\n{} {} {} {} re\n f\n Q'.format(name, *boxes[i]), 'utf8'), xobj_dict)
-            back_rect = pdf.make_stream(bytes('q \n1.0 1.0 1.0 rg\n{} gs\n{} {} {} {} re\n f\n Q'.format(name2, *boxes[i]), 'utf8'))
-            #Add Rectangles to page
+            # Create rectangles
+            front_rect = pdf.make_stream(bytes(
+                'q \n{0:.2} {0:.2} {0:.2} rg\n{1} gs\n{2} {3} {4} {5} re\n f\n Q'.format(inv_ratio, name, *boxes[i]), 'utf8'), xobj_dict)
+            back_rect = pdf.make_stream(bytes(
+                'q \n1.0 1.0 1.0 rg\n{} gs\n{} {} {} {} re\n f\n Q'.format(name2, *boxes[i]), 'utf8'))
+            # Add Rectangles to page
             page.contents_add(back_rect, prepend=True)
             page.contents_add(front_rect)
-            
+
         pdf.save(out_file)
 
-def invert_files_to_folder(files, folder):
+
+def invert_files_to_folder(files, folder, inv_ratio: float = 1.0):
     '''
     Converts all given files and places their inverted copies in the given folder under the same file names.
 
@@ -83,32 +84,80 @@ def invert_files_to_folder(files, folder):
         try:
             # add _inverted to the file name
             inverted_pdf_file = folder / (ifile.stem + '_inverted.pdf')
-            invertPDF(str(ifile), str(inverted_pdf_file))
+            invertPDF(str(ifile), str(inverted_pdf_file), inv_ratio)
             print('Success: {}'.format(ifile.name))
         except Exception as e:
             print('Failed: {}'.format(ifile.name))
             print(e)
 
+
 if __name__ == '__main__':
-    #Convert all pdfs in directory
-    if len(sys.argv) == 1:
-        path = Path.cwd()
-        files_to_invert = path.glob('*.pdf')
-        invert_files_to_folder(files_to_invert, path)
+    import argparse
+    cli = argparse.ArgumentParser(
+        prog='InvertPDF',
+        description='Invert the color of PDFs at a file level.'
+    )
 
+    cli.add_argument(
+        'in_paths',
+        nargs='*',
+        help=(
+            'Input files or folders to convert for. If no paths are specified, defaults'
+            ' to the current working directory.'
+        ),
+        type=Path,
+        default=[Path.cwd()]
+    )
 
-    #Convert specfic PDF or PDFs in specific directory
-    else:
-        for i in range(1, len(sys.argv)):
-            try:
-                path = Path(sys.argv[i])    
-            
-                if path.is_dir():
-                    files_to_invert = path.glob('*.pdf')
-                   
-                elif path.is_file():
-                    files_to_invert = [path]
-                    path = path.parent
-                invert_files_to_folder(files_to_invert, path)
-            except:
-                    print("Folder or File arguement failed: {}".format(sys.argv[i]))
+    cli.add_argument(
+        '--global-out-path',
+        help=(
+            'Output path to place the inverted PDFs in. If not present, all'
+            ' inverted PDFs will be stored in the same location as their respective original'
+            ' file with and appended with `_inverted`.'),
+        type=Path
+    )
+
+    cli.add_argument(
+        '--local-out-path',
+        help='Use a dedicated relative inverted path when `global-out-path` is not specified.',
+        type=Path
+    )
+
+    cli.add_argument(
+        '--inv-ratio',
+        help=(
+            'Inversion ratio between 0 and 1. 0 corresponds no inversion and 1 corresponds to a true color inversion.'
+            ' By default this is 0.9 to produce inversions that are easier on the eyes.'
+        ),
+        type=float,
+        default=0.9
+    )
+
+    cli_args = cli.parse_args()
+
+    gop: Path = cli_args.global_out_path
+    lop: Path = cli_args.local_out_path
+    if lop and lop.is_absolute():
+        print(f'Error: Local output path: {lop} is not a relative directory')
+        exit(1)
+
+    inv_ratio = max(min(cli_args.inv_ratio, 1.0), 0.0)
+
+    for path in cli_args.in_paths:
+        if path.is_dir():
+            files_to_invert = path.glob('*.pdf')
+            out_path = path
+
+        elif path.is_file():
+            files_to_invert = [path]
+            out_path = path.parent
+        else:
+            print(f'Warning: {path} is not a directory or a file, skipping')
+
+        if gop:
+            out_path = gop
+        elif lop:
+            out_path = out_path.joinpath(lop)
+
+        invert_files_to_folder(files_to_invert, out_path, cli_args.inv_ratio)
