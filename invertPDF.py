@@ -1,20 +1,19 @@
 #!/usr/bin/python3
-'''
+"""
 A simple script for inverting PDF files.
 
 Usage:
-python3 invertPDF.py [file/folder 1] [file/folder 2] ...
+python3 invertPDF.py input.pdf [-o output.pdf]
 
-For each folder given as arguement, all PDF files inside the folder will be inverted and the inverted copies will be saved
-inside the given folder, using the original file names for the inverted copies.
-For all files given as input, the file is converted in a similar manner, with the pdfs now located in the
-parent folder of the file. If no arguements are given, the parent folder of the script is treated as input.
-'''
+The script will create an inverted copy of the input file and save it to the output file.
+If no output file is provided, the script will overwrite the input file.
+"""
 
 __author__ = 'Christoff van Zyl'
 __copyright__ = '"Copyright 2021, invertPDF'
 __license__ = 'GPL'
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -24,13 +23,13 @@ from pikepdf import Page, Name
 
 
 def invertPDF(in_file, out_file):
-    '''
+    """
     Inverts a PDF and saves it elsewhere.
 
     Parameters:
     in_file: The file to invert.
     out_file: The destination of the inverted copy.
-    '''
+    """
     # Setup
     blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), BM=Name('/Exclusion'), ca=1, CA=1)
     non_blend_dict = pikepdf.Dictionary(Type=Name('/ExtGState'), ca=1, CA=1)
@@ -72,46 +71,37 @@ def invertPDF(in_file, out_file):
         pdf.save(out_file)
 
 
-def invert_files_to_folder(files, folder):
-    '''
+def invert_file_to_folder(input_file, output_file: Path):
+    """
     Converts all given files and places their inverted copies in the given folder under the same file names.
 
     Parameters:
     files: Array of file names to be converted.
     folder: The folder in which to put the inverted copies.
-    '''
-    folder.mkdir(parents=True, exist_ok=True)
-    for ifile in files:
-        try:
-            # add _inverted to the file name
-            inverted_pdf_file = folder / (ifile.stem + '_inverted.pdf')
-            invertPDF(str(ifile), str(inverted_pdf_file))
-            print('Success: {}'.format(ifile.name))
-        except Exception as e:
-            print('Failed: {}'.format(ifile.name))
-            print(e)
+    """
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    if output_file.exists():
+        # add _inverted to the file name
+        output_file = output_file.with_name(output_file.stem + '_inverted' + output_file.suffix)
+        invertPDF(str(input_file), str(output_file))
+        # delete original file
+        input_file.unlink()
+        # rename inverted file to original file name
+        output_file.rename(input_file)
+    else:
+        invertPDF(str(input_file), str(output_file))
+    print('Success: {}'.format(input_file.name))
 
 
 if __name__ == '__main__':
-    # Convert all pdfs in directory
-    if len(sys.argv) == 1:
-        path = Path.cwd()
-        files_to_invert = path.glob('*.pdf')
-        invert_files_to_folder(files_to_invert, path)
+    parser = argparse.ArgumentParser(description='Invert the colors of a PDF file.')
 
+    parser.add_argument('input', type=str, help='The path to the input PDF file.')
+    parser.add_argument('-o', '--output', type=str, help='The output folder.', default=None)
 
-    # Convert specfic PDF or PDFs in specific directory
-    else:
-        for i in range(1, len(sys.argv)):
-            try:
-                path = Path(sys.argv[i])
+    args = parser.parse_args()
 
-                if path.is_dir():
-                    files_to_invert = path.glob('*.pdf')
-
-                elif path.is_file():
-                    files_to_invert = [path]
-                    path = path.parent
-                invert_files_to_folder(files_to_invert, path)
-            except:
-                print("Folder or File arguement failed: {}".format(sys.argv[i]))
+    input_file = Path(args.input)
+    output_file = Path(args.output or args.input)
+    assert input_file.exists(), "PDF file does not exist."
+    invert_file_to_folder(input_file, output_file)
