@@ -11,9 +11,10 @@ from pathlib import Path
 import pikepdf
 from PyPDF2 import PdfReader
 from pikepdf import Page, Name
+import pikepdf
 
 
-def invertPDF(in_file, out_file, inv_ratio: float = 1.0):
+def invertPDF(in_file, out_file, inv_ratio: float = 1.0, scribble_page_density: int = 0):
     '''
     Inverts a PDF and saves it elsewhere.
 
@@ -46,24 +47,51 @@ def invertPDF(in_file, out_file, inv_ratio: float = 1.0):
         boxes.append([min_c, min_c, max_c - min_c, max_c - min_c])
 
     with pikepdf.open(in_file) as pdf:
-        for i in range(num_pages):
+        for i in reversed(range(num_pages)):
+
             page = Page(pdf.pages[i])
-            # Add Dictionaries to Page
-            name = page.add_resource(blend_dict, Name('/ExtGState'))
-            name2 = page.add_resource(non_blend_dict, Name('/ExtGState'))
-            # Create rectangles
-            front_rect = pdf.make_stream(bytes(
-                'q \n{0:.2} {0:.2} {0:.2} rg\n{1} gs\n{2} {3} {4} {5} re\n f\n Q'.format(inv_ratio, name, *boxes[i]), 'utf8'), xobj_dict)
-            back_rect = pdf.make_stream(bytes(
-                'q \n1.0 1.0 1.0 rg\n{} gs\n{} {} {} {} re\n f\n Q'.format(name2, *boxes[i]), 'utf8'))
-            # Add Rectangles to page
-            page.contents_add(back_rect, prepend=True)
-            page.contents_add(front_rect)
+            if inv_ratio > 0.0:
+                # Add Dictionaries to Page
+                name = page.add_resource(blend_dict, Name('/ExtGState'))
+                name2 = page.add_resource(non_blend_dict, Name('/ExtGState'))
+                # Create rectangles
+                front_rect = pdf.make_stream(bytes(
+                    'q \n{0:.2} {0:.2} {0:.2} rg\n{1} gs\n{2} {3} {4} {5} re\n f\n Q'.format(inv_ratio, name, *boxes[i]), 'utf8'), xobj_dict)
+                back_rect = pdf.make_stream(bytes(
+                    'q \n1.0 1.0 1.0 rg\n{} gs\n{} {} {} {} re\n f\n Q'.format(name2, *boxes[i]), 'utf8'))
+                # Add Rectangles to page
+                page.contents_add(back_rect, prepend=True)
+                page.contents_add(front_rect)
+
+            if scribble_page_density <= 0:
+                continue
+
+            for _ in range(scribble_page_density):
+                scribble_page = pikepdf.Page(
+                    pikepdf.Dictionary(Type=Name.Page))
+                scribble_page.mediabox = page.mediabox
+                scribble_page.artbox = page.artbox
+                scribble_page.cropbox = page.cropbox
+                scribble_page.bleedbox = page.bleedbox
+                scribble_page.trimbox = page.trimbox
+                pdf.pages.insert(i+1, scribble_page)
+                if inv_ratio > 0.0:
+                    name = scribble_page.add_resource(
+                        blend_dict, Name('/ExtGState'))
+                    name2 = scribble_page.add_resource(
+                        non_blend_dict, Name('/ExtGState'))
+                    # Create rectangles
+                    front_rect = pdf.make_stream(bytes(
+                        'q \n{0:.2} {0:.2} {0:.2} rg\n{1} gs\n{2} {3} {4} {5} re\n f\n Q'.format(inv_ratio, name, *boxes[i]), 'utf8'), xobj_dict)
+                    back_rect = pdf.make_stream(bytes(
+                        'q \n1.0 1.0 1.0 rg\n{} gs\n{} {} {} {} re\n f\n Q'.format(name2, *boxes[i]), 'utf8'))
+                    scribble_page.contents_add(back_rect, prepend=True)
+                    scribble_page.contents_add(front_rect)
 
         pdf.save(out_file)
 
 
-def invert_files_to_folder(files, folder, inv_ratio: float = 1.0):
+def invert_files_to_folder(files, folder, inv_ratio: float = 1.0, scribble_page_density: int = 0):
     '''
     Converts all given files and places their inverted copies in the given folder under the same file names.
 
@@ -76,7 +104,8 @@ def invert_files_to_folder(files, folder, inv_ratio: float = 1.0):
         try:
             # add _inverted to the file name
             inverted_pdf_file = folder / (ifile.stem + '_inverted.pdf')
-            invertPDF(str(ifile), str(inverted_pdf_file), inv_ratio)
+            invertPDF(str(ifile), str(inverted_pdf_file),
+                      inv_ratio, scribble_page_density)
             print('Success: {}'.format(ifile.name))
         except Exception as e:
             print('Failed: {}'.format(ifile.name))
@@ -126,6 +155,16 @@ if __name__ == '__main__':
         default=0.9
     )
 
+    cli.add_argument(
+        '--scribble-page-density',
+        help=(
+            'Add N empty pages after every page in the original PDF.'
+            ' Useful when using the PDF with software that allows writing on the PDF.'
+        ),
+        type=int,
+        default=0
+    )
+
     cli_args = cli.parse_args()
 
     gop: Path = cli_args.global_out_path
@@ -152,4 +191,5 @@ if __name__ == '__main__':
         elif lop:
             out_path = out_path.joinpath(lop)
 
-        invert_files_to_folder(files_to_invert, out_path, cli_args.inv_ratio)
+        invert_files_to_folder(files_to_invert, out_path,
+                               inv_ratio, cli_args.scribble_page_density)
